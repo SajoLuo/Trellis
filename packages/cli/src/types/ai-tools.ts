@@ -607,9 +607,9 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
    * ships as class-2: workflow/bundled skills go to the shared `.agents/skills/`
    * root via the neutral resolver (byte-identical to Codex/Gemini/Pi/Kimi
    * writes), while DSH-private entry points (trellis-start / trellis-continue /
-   * trellis-finish-work) and the Trellis agent prompts (trellis-implement /
-   * trellis-check / trellis-research) live under `.dsh/skills/` with the
-   * pull-based prelude on implement/check.
+   * trellis-finish-work) and collision-free agent-role skills
+   * (trellis-agent-implement / trellis-agent-check / trellis-agent-research)
+   * live under `.dsh/skills/` with the pull-based prelude on implement/check.
    *
    * DSH has no project-level hooks/settings file Trellis may write, so
    * hasHooks/hasPythonHooks stay false and no hook assets are emitted.

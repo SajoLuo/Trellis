@@ -482,16 +482,16 @@ describe("collectPlatformTemplates", () => {
     expect(result?.has(".kimi-code/skills/trellis-continue/SKILL.md")).toBe(
       true,
     );
-    expect(
-      result?.has(".kimi-code/skills/trellis-finish-work/SKILL.md"),
-    ).toBe(true);
-    expect(
-      result?.has(".kimi-code/skills/trellis-implement/SKILL.md"),
-    ).toBe(true);
+    expect(result?.has(".kimi-code/skills/trellis-finish-work/SKILL.md")).toBe(
+      true,
+    );
+    expect(result?.has(".kimi-code/skills/trellis-implement/SKILL.md")).toBe(
+      true,
+    );
     expect(result?.has(".kimi-code/skills/trellis-check/SKILL.md")).toBe(true);
-    expect(
-      result?.has(".kimi-code/skills/trellis-research/SKILL.md"),
-    ).toBe(true);
+    expect(result?.has(".kimi-code/skills/trellis-research/SKILL.md")).toBe(
+      true,
+    );
     // No project-level hooks/settings for Kimi
     expect(
       [...(result?.keys() ?? [])].some((key) =>
@@ -514,9 +514,13 @@ describe("collectPlatformTemplates", () => {
     expect(result?.has(".dsh/skills/trellis-start/SKILL.md")).toBe(true);
     expect(result?.has(".dsh/skills/trellis-continue/SKILL.md")).toBe(true);
     expect(result?.has(".dsh/skills/trellis-finish-work/SKILL.md")).toBe(true);
-    expect(result?.has(".dsh/skills/trellis-implement/SKILL.md")).toBe(true);
-    expect(result?.has(".dsh/skills/trellis-check/SKILL.md")).toBe(true);
-    expect(result?.has(".dsh/skills/trellis-research/SKILL.md")).toBe(true);
+    expect(result?.has(".dsh/skills/trellis-agent-implement/SKILL.md")).toBe(
+      true,
+    );
+    expect(result?.has(".dsh/skills/trellis-agent-check/SKILL.md")).toBe(true);
+    expect(result?.has(".dsh/skills/trellis-agent-research/SKILL.md")).toBe(
+      true,
+    );
     // No project-level hooks/settings for dsh
     expect(
       [...(result?.keys() ?? [])].some((key) => key.startsWith(".dsh/hooks")),

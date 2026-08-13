@@ -269,6 +269,8 @@ const EXCLUDE_FROM_HASH = [
   "workspace/", // Workspace files (user data)
   "tasks/", // Task files (user data)
   ".current-task", // Current task marker (file, not directory)
+  "__pycache__/", // Python bytecode cache generated while init scripts run
+  ".pyc", // Python bytecode files outside a conventional cache directory
   ".trellis/spec/", // User-customized spec files
   ".backup-", // Backup directories
 ];

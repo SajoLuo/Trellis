@@ -327,7 +327,9 @@ describe("matchesOriginalTemplate", () => {
   });
 
   it("returns false when file does not exist", () => {
-    expect(matchesOriginalTemplate(tmpDir, "missing.txt", "content")).toBe(false);
+    expect(matchesOriginalTemplate(tmpDir, "missing.txt", "content")).toBe(
+      false,
+    );
   });
 
   it("returns true when file matches original content exactly", () => {
@@ -458,8 +460,13 @@ describe("initializeHashes", () => {
   });
 
   it("excludes workspace and tasks directories", () => {
-    fs.mkdirSync(path.join(tmpDir, ".trellis", "workspace"), { recursive: true });
-    fs.writeFileSync(path.join(tmpDir, ".trellis", "workspace", "data.md"), "user data");
+    fs.mkdirSync(path.join(tmpDir, ".trellis", "workspace"), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(tmpDir, ".trellis", "workspace", "data.md"),
+      "user data",
+    );
     fs.mkdirSync(path.join(tmpDir, ".trellis", "tasks"), { recursive: true });
     fs.writeFileSync(path.join(tmpDir, ".trellis", "tasks", "task.json"), "{}");
 
@@ -473,12 +480,27 @@ describe("initializeHashes", () => {
   });
 
   it("excludes spec/ directory files from hashing", () => {
-    fs.mkdirSync(path.join(tmpDir, ".trellis", "spec", "guides"), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, ".trellis", "spec", "frontend"), { recursive: true });
-    fs.mkdirSync(path.join(tmpDir, ".trellis", "spec", "backend"), { recursive: true });
-    fs.writeFileSync(path.join(tmpDir, ".trellis", "spec", "guides", "index.md"), "# Guides");
-    fs.writeFileSync(path.join(tmpDir, ".trellis", "spec", "frontend", "index.md"), "# Frontend");
-    fs.writeFileSync(path.join(tmpDir, ".trellis", "spec", "backend", "index.md"), "# Backend");
+    fs.mkdirSync(path.join(tmpDir, ".trellis", "spec", "guides"), {
+      recursive: true,
+    });
+    fs.mkdirSync(path.join(tmpDir, ".trellis", "spec", "frontend"), {
+      recursive: true,
+    });
+    fs.mkdirSync(path.join(tmpDir, ".trellis", "spec", "backend"), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(tmpDir, ".trellis", "spec", "guides", "index.md"),
+      "# Guides",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, ".trellis", "spec", "frontend", "index.md"),
+      "# Frontend",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, ".trellis", "spec", "backend", "index.md"),
+      "# Backend",
+    );
 
     const count = initializeHashes(tmpDir);
     const hashes = loadHashes(tmpDir);
@@ -511,6 +533,38 @@ describe("initializeHashes", () => {
     expect(hashes).toHaveProperty(".trellis/scripts/common/task.py");
   });
 
+  it("excludes generated Python bytecode from template hashes", () => {
+    const cacheDir = path.join(
+      tmpDir,
+      ".trellis",
+      "scripts",
+      "common",
+      "__pycache__",
+    );
+    fs.mkdirSync(cacheDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(cacheDir, "active_task.cpython-312.pyc"),
+      "bytecode",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, ".trellis", "scripts", "helper.pyc"),
+      "bytecode",
+    );
+    fs.writeFileSync(
+      path.join(tmpDir, ".trellis", "scripts", "task.py"),
+      "print('ok')",
+    );
+
+    initializeHashes(tmpDir);
+    const hashes = loadHashes(tmpDir);
+
+    expect(hashes).toHaveProperty(".trellis/scripts/task.py");
+    expect(Object.keys(hashes).some((key) => key.includes("__pycache__"))).toBe(
+      false,
+    );
+    expect(Object.keys(hashes).some((key) => key.endsWith(".pyc"))).toBe(false);
+  });
+
   it("does not exclude generated update-spec skills from hashing", () => {
     fs.mkdirSync(path.join(tmpDir, ".trellis"), { recursive: true });
     const skillPath = path.join(
@@ -533,9 +587,7 @@ describe("initializeHashes", () => {
     });
     const hashes = loadHashes(tmpDir);
 
-    expect(hashes).toHaveProperty(
-      ".pi/skills/trellis-update-spec/SKILL.md",
-    );
+    expect(hashes).toHaveProperty(".pi/skills/trellis-update-spec/SKILL.md");
     expect(count).toBe(1);
   });
 });

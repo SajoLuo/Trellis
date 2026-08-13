@@ -8,8 +8,9 @@
  *   into the same shared root (dsh discovers `.agents/skills/` natively).
  * - `.dsh/skills/` — dsh-private entry points: the user-invocable commands as
  *   skills (`/trellis-start`, `/trellis-continue`, `/trellis-finish-work`)
- *   plus the Trellis agent prompts (trellis-implement / trellis-check /
- *   trellis-research) with the pull-based prelude on implement/check.
+ *   plus collision-free Trellis agent-role skills (trellis-agent-implement /
+ *   trellis-agent-check / trellis-agent-research) with the pull-based prelude
+ *   on implement/check.
  *
  * dsh has no project-level hooks/settings file Trellis may write and no
  * declarative custom sub-agent definitions (dispatch goes through the
@@ -49,10 +50,21 @@ function resolveDshCommandSkills(): ReturnType<typeof resolveAllAsSkills> {
   );
 }
 
-/** Trellis agent prompts as dsh skills, with the pull-based prelude on
- *  implement/check. */
+/** Trellis agent prompts as DSH-private skills. The `trellis-agent-*` names
+ *  intentionally do not collide with shared main-session workflow skills such
+ *  as `.agents/skills/trellis-check`. */
 function resolveDshAgentSkills(): AgentContent[] {
-  return applyPullBasedPreludeMarkdown(getAllAgents());
+  return applyPullBasedPreludeMarkdown(getAllAgents()).map((agent) => {
+    const name = agent.name.replace(/^trellis-/, "trellis-agent-");
+    return {
+      ...agent,
+      name,
+      content: agent.content.replace(
+        /^name:\s*trellis-[^\r\n]+$/m,
+        `name: ${name}`,
+      ),
+    };
+  });
 }
 
 /**

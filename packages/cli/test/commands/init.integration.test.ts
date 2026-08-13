@@ -708,7 +708,13 @@ describe("init() integration", () => {
     ).toBe(true);
     expect(
       fs.existsSync(
-        path.join(tmpDir, ".dsh", "skills", "trellis-implement", "SKILL.md"),
+        path.join(
+          tmpDir,
+          ".dsh",
+          "skills",
+          "trellis-agent-implement",
+          "SKILL.md",
+        ),
       ),
     ).toBe(true);
 

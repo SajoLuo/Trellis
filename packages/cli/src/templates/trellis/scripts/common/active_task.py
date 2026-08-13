@@ -59,8 +59,8 @@ _KNOWN_PLATFORMS = {
 }
 
 # Every name below records how it was checked. Do NOT add a name by analogy
-# with a neighbour: a 2026-08-05 audit of all 21 platforms found 12 of the 21
-# declared names had never existed anywhere — they were pattern-guessed from a
+# with a neighbour: a 2026-08-05 audit of the then-current 21 platforms found
+# 12 declared names had never existed anywhere — they were pattern-guessed from
 # `<PLATFORM>_SESSION_ID` shape no vendor agreed to, and the uniformity was the
 # only "evidence" behind them. A platform with no verified name belongs in no
 # table; it resolves through TRELLIS_CONTEXT_ID or its hook/plugin bridge.
@@ -108,6 +108,11 @@ _ENV_SESSION_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
     # Trellis in its source header. TRELLIS_CONTEXT_ID stays the preferred
     # override — Snow sets that too.
     ("snow", ("SNOW_SESSION_ID",)),
+    # REAL by vendor design (verified 2026-08-13 against dsh 0.1.0-rc.6
+    # @deepseek-ai/dsh-shell-env docs and implementation): every model shell
+    # execution receives DSH_SESSION_ID=agent.session.header.id. Use the native
+    # identity directly instead of requiring a Trellis-specific env bridge.
+    ("dsh", ("DSH_SESSION_ID",)),
 )
 _ENV_CONVERSATION_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
     # REAL in cursor-agent (CLI), undocumented (verified 2026-08-05: the value
@@ -288,6 +293,15 @@ def _iter_env_keys(
 
 def _env_platform_name(platform_name: str | None) -> str | None:
     if not platform_name or platform_name == "session":
+        # A Harness-managed shell marks itself explicitly and refreshes every
+        # DSH_* value per execution. Prefer that inner identity over ambient
+        # variables inherited from an outer agent host (for example launching
+        # `dsh` from a Codex terminal that still exports CODEX_THREAD_ID).
+        if (
+            _string_value(os.environ.get("DSH_SHELL")) == "1"
+            and _string_value(os.environ.get("DSH_SESSION_ID"))
+        ):
+            return "dsh"
         return None
     return _ENV_PLATFORM_ALIASES.get(platform_name, platform_name)
 
@@ -481,15 +495,6 @@ def resolve_context_key(
         override = _string_value(os.environ.get("TRELLIS_CONTEXT_ID"))
         if override:
             return _sanitize_key(override) or _hash_value(override)
-        # DeepSeek Harness (dsh): the dsh-trellis harness plugin exports this
-        # DSH_* variable into every agent shell (REAL by vendor design — the
-        # shell-env registry delivers declared DSH_* facts per tool call), so
-        # main-session `task.py start` / `create` and the sub-agent prelude's
-        # `task.py current` resolve the same per-session pointer.
-        dsh_override = _string_value(os.environ.get("DSH_TRELLIS_CONTEXT_ID"))
-        if dsh_override:
-            return _sanitize_key(dsh_override) or _hash_value(dsh_override)
-
     data = _as_dict(platform_input)
     platform_name = _detect_platform(data, platform) if data or platform else None
 

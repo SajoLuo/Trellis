@@ -220,11 +220,11 @@ Inline mode: skip jsonl curation; Phase 2 reads artifacts/specs via `trellis-bef
      therefore must cover every required step from implementation through
      commit, including Phase 3.3 spec update and Phase 3.4 commit. -->
 
-Sub-agent dispatch protocol applies to all platforms and all sub-agents, including native Codex `SubagentStart` context injection with child-side pull fallback, class-2 Gemini/Qoder/Copilot/Reasonix/Trae/Grok/Kimi Code/DeepSeek Harness, hook-backed ZCode/Snow, and `trellis-research`: every dispatch prompt starts with `Active task: <task path from task.py current>` before role-specific instructions. On Grok Build, use `spawn_subagent` with `subagent_type` set to the Trellis agent name (e.g. `trellis-implement`). On Kimi Code, dispatch the built-in `coder` / `explore` sub-agent with the matching `.kimi-code/skills/trellis-<role>/SKILL.md` instructions. On DeepSeek Harness, dispatch a plain `subagent` with the matching `.dsh/skills/trellis-<role>/SKILL.md` instructions.
+Sub-agent dispatch protocol applies to all platforms and all sub-agents, including native Codex `SubagentStart` context injection with child-side pull fallback, class-2 Gemini/Qoder/Copilot/Reasonix/Trae/Grok/Kimi Code/DeepSeek Harness, hook-backed ZCode/Snow, and `trellis-research`: every dispatch prompt starts with `Active task: <task path from task.py current>` before role-specific instructions. On Grok Build, use `spawn_subagent` with `subagent_type` set to the Trellis agent name (e.g. `trellis-implement`). On Kimi Code, dispatch the built-in `coder` / `explore` sub-agent with the matching `.kimi-code/skills/trellis-<role>/SKILL.md` instructions. On DeepSeek Harness, dispatch `subagent` in its default continuable background mode and tell the child to load the matching `.dsh/skills/trellis-agent-<role>/SKILL.md` exactly once. Continue independent work while it runs, but do not advance a workflow gate that depends on its result until the settlement notice arrives. After independent work is exhausted, call the plugin's event-driven `trellis_wait` with that child id; it returns only after DSH has queued the native settlement notice. Never simulate waiting with shell sleep, polling loops, `job_output`, repeated `list_agents`, or another long-running command. Use `run_in_background: false` only at initial dispatch when the very next action requires the result and no independent work exists.
 
 [workflow-state:in_progress]
-Tools: `trellis-implement` / `trellis-research` are sub-agent types only (Task/Agent tool, NOT Skill; there is no skill by these names). `trellis-update-spec` is a skill. `trellis-check` exists as both; prefer the Agent form when verifying after code changes.
-On DeepSeek Harness, `trellis-implement` / `trellis-check` / `trellis-research` ship as skills under `.dsh/skills/`; dispatch them via the `subagent` tool with the skill's instructions in the prompt.
+Tools: `trellis-implement` / `trellis-research` name sub-agent roles, not main-session skills. `trellis-update-spec` is a skill. `trellis-check` exists as both; prefer the Agent/role form when verifying after code changes.
+On DeepSeek Harness, role instructions ship as collision-free `trellis-agent-implement` / `trellis-agent-check` / `trellis-agent-research` skills under `.dsh/skills/`. The main session must not load them itself: dispatch `subagent` in the default background mode and tell the child to load the matching role skill exactly once. Do independent work, then call `trellis_wait` once with the child id when a dependent gate is next. Consume the native settlement notice before entering that gate. Do not poll or sleep; foreground is an explicit initial-dispatch fallback only when there is no independent work to do.
 Flow: `trellis-implement` -> `trellis-check` -> `trellis-update-spec` -> commit (Phase 3.4) -> `/trellis:finish-work`.
 Main-session default: dispatch implement/check sub-agents. Sub-agent self-exemption: if already running as `trellis-implement`, do NOT spawn another `trellis-implement` or `trellis-check`; if already running as `trellis-check`, do NOT spawn another `trellis-check` or `trellis-implement`. Dispatch is main session only.
 Dispatch prompt starts with `Active task: <task path from task.py current>`. Read context: jsonl entries -> `prd.md` -> `design.md if present` -> `implement.md if present`.
@@ -361,6 +361,7 @@ Spawn the research sub-agent:
 - **Agent type**: `trellis-research`
 - **Task description**: Research <specific question>
 - **Key requirement**: Research output MUST be persisted to `{TASK_DIR}/research/`
+- **DeepSeek Harness**: call `subagent` in the default continuable background mode; tell the child to load `trellis-agent-research` exactly once. Dispatch independent research questions concurrently in the same assistant message when useful, and continue unrelated main-session work. When only the dependent planning step remains, call `trellis_wait` once per outstanding child id; do not poll or sleep. Consume each native settlement notice before advancing.
 
 [/Claude Code, Cursor, OpenCode, codex-sub-agent, Kiro, Gemini, Qoder, CodeBuddy, Copilot, Droid, Pi, Oh My Pi, ZCode, Snow, Reasonix, Trae, Grok, Kimi Code, DeepSeek Harness]
 
@@ -495,6 +496,7 @@ Spawn the implement sub-agent:
 - **Agent type**: `trellis-implement`
 - **Task description**: Implement the reviewed task artifacts, consulting materials under `{TASK_DIR}/research/`; finish by running project lint and type-check
 - **Dispatch prompt guard**: The prompt MUST start with `Active task: <task path>`, then explicitly say the spawned agent is already `trellis-implement` and must implement directly without spawning another `trellis-implement` / `trellis-check`.
+- **DeepSeek Harness**: call `subagent` in the default background mode; tell the child to load `trellis-agent-implement` exactly once. Continue independent work, then use `trellis_wait` for that child id when Phase 2.2 is the next dependent action. Do not poll or sleep. Enter Phase 2.2 only after the native implementation settlement notice arrives successfully.
 
 The pull-based sub-agent definition auto-handles the context load requirement:
 - Resolves the active task with `task.py current --source`, then reads `prd.md`, `design.md` if present, and `implement.md` if present
@@ -535,12 +537,14 @@ Spawn the check sub-agent:
 - **Agent type**: `trellis-check`
 - **Task description**: Review all code changes against specs and task artifacts; fix any findings directly; ensure lint and type-check pass
 - **Dispatch prompt guard**: The prompt MUST start with `Active task: <task path>`, then tell the spawned agent it is already the `trellis-check` sub-agent and must review/fix directly, not spawn another `trellis-check` / `trellis-implement`.
+- **DeepSeek Harness**: call `subagent` in the default background mode; tell the child to load `trellis-agent-check` exactly once. Continue independent work, then use `trellis_wait` for that child id when Phase 3 is the next dependent action. Do not poll or sleep. Enter Phase 3 only after the native check settlement notice arrives successfully.
 
 The check agent's job:
 - Review code changes against specs
 - Review code changes against `prd.md`, `design.md` if present, and `implement.md` if present
 - Auto-fix issues it finds
 - Run lint and typecheck to verify
+- A required check that cannot run, is skipped, or exits non-zero is blocked/failed, never passed. Do not weaken or rewrite acceptance criteria to advance the workflow.
 
 [/Claude Code, Cursor, OpenCode, codex-sub-agent, Kiro, Gemini, Qoder, CodeBuddy, Copilot, Droid, Pi, Oh My Pi, ZCode, Snow, Reasonix, Trae, Grok, Kimi Code, DeepSeek Harness]
 

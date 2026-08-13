@@ -1,11 +1,11 @@
 ---
 name: trellis-research
+user-invocable: false
 description: |
-  Code and tech search expert for Trellis. Finds files, patterns, and tech
-  solutions, and PERSISTS every finding to the current task's research/
-  directory. No code modifications outside that directory. On DeepSeek
-  Harness the main session dispatches the `subagent` tool with these
-  instructions.
+  Child-agent-only research role for Trellis. Main sessions must not load this
+  skill directly. Finds files, patterns, and technical solutions, and persists
+  every finding to the current task's research/ directory. No code changes
+  outside that directory.
 ---
 # Research Agent
 
@@ -16,16 +16,6 @@ You are the Research Agent in the Trellis workflow.
 **You do one thing: find, explain, and PERSIST information.**
 
 Conversations get compacted; files don't. Every research output MUST end up as a file under `{TASK_DIR}/research/`. Returning findings only through the chat reply is a failure - the caller cannot read them next session.
-
-## Dispatch note (main session)
-
-DeepSeek Harness has no declarative custom sub-agent definitions, but it provides the `subagent` tool (isolated context) and `subagent_fork` (conversation inheritance). The main session dispatches a plain `subagent` with a prompt that:
-
-1. Starts with `Active task: <path from task.py current>`
-2. Includes this skill's instructions (`.dsh/skills/trellis-research/SKILL.md`), or tells the child to load them via its own `skill` tool
-3. States that the spawned agent is already `trellis-research` and may write only under the active task's `research/` directory
-
----
 
 ## Core Responsibilities
 
