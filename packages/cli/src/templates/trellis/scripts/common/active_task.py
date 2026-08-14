@@ -55,6 +55,7 @@ _KNOWN_PLATFORMS = {
     "kimi",
     "zcode",
     "snow",
+    "dsh",
 }
 
 # Every name below records how it was checked. Do NOT add a name by analogy
@@ -485,6 +486,59 @@ def _lookup_shell_ticket_context_key() -> str | None:
     return None
 
 
+def _payload_context_key(
+    data: dict[str, Any] | None,
+    platform_name: str | None,
+) -> str | None:
+    """Derive a context key from hook stdin, if the payload carries identity."""
+    if not data:
+        return None
+
+    session_id = _lookup_string(data, _SESSION_KEYS)
+    if session_id:
+        return _context_key(platform_name or "session", "session", session_id)
+
+    conversation_id = _lookup_string(data, _CONVERSATION_KEYS)
+    if conversation_id:
+        return _context_key(platform_name or "session", "conversation", conversation_id)
+
+    transcript_path = _lookup_string(data, _TRANSCRIPT_KEYS)
+    if transcript_path:
+        return _context_key(platform_name or "session", "transcript", transcript_path)
+
+    return None
+
+
+def _environment_override_key() -> str | None:
+    override = _string_value(os.environ.get("TRELLIS_CONTEXT_ID"))
+    if not override:
+        return None
+    return _sanitize_key(override) or _hash_value(override)
+
+
+def _proven_innermost_host_key() -> str | None:
+    """Return a context key only when this process can prove it is the host.
+
+    `TRELLIS_CONTEXT_ID` is an ordinary inherited environment variable, so a
+    nested agent session sees the outer session's override. A proof must show
+    that the current process rebuilt its own identity — leftover or hand-set
+    native session vars are not enough (issue #549).
+
+    Do not add a name here by analogy. Each proof records why the sentinel
+    cannot arrive from an outer Trellis session.
+    """
+    # REAL (verified 2026-08-14 against DSH 0.1.0-rc.6): a managed DSH shell
+    # wipes and rebuilds the entire DSH_* namespace on session start.
+    # DSH_SHELL=1 plus DSH_SESSION_ID is therefore a live DSH host, not an
+    # inherited leftover. DSH_SESSION_ID alone can be set by hand or survive
+    # in a parent profile, so it is not a proof.
+    if _string_value(os.environ.get("DSH_SHELL")) == "1":
+        session_id = _string_value(os.environ.get("DSH_SESSION_ID"))
+        if session_id:
+            return _context_key("dsh", "session", session_id)
+    return None
+
+
 def resolve_context_key(
     platform_input: dict[str, Any] | None = None,
     platform: str | None = None,
@@ -494,28 +548,27 @@ def resolve_context_key(
     """Resolve a stable session/window context key, if one is available.
 
     `TRELLIS_CONTEXT_ID` is an explicit context-key override used by CLI
-    scripts and subprocesses. It does not store the task itself.
+    scripts and subprocesses. It does not store the task itself. An inherited
+    override loses to a proven innermost host or to a hook payload that names
+    a different session (issue #549).
     """
-    if allow_environment_context:
-        override = _string_value(os.environ.get("TRELLIS_CONTEXT_ID"))
-        if override:
-            return _sanitize_key(override) or _hash_value(override)
-
     data = _as_dict(platform_input)
     platform_name = _detect_platform(data, platform) if data or platform else None
+    payload_key = _payload_context_key(data, platform_name)
 
-    if data:
-        session_id = _lookup_string(data, _SESSION_KEYS)
-        if session_id:
-            return _context_key(platform_name or "session", "session", session_id)
+    if allow_environment_context:
+        host_key = _proven_innermost_host_key()
+        if host_key:
+            return host_key
 
-        conversation_id = _lookup_string(data, _CONVERSATION_KEYS)
-        if conversation_id:
-            return _context_key(platform_name or "session", "conversation", conversation_id)
+        override_key = _environment_override_key()
+        if payload_key and override_key and payload_key != override_key:
+            return payload_key
+        if override_key:
+            return override_key
 
-        transcript_path = _lookup_string(data, _TRANSCRIPT_KEYS)
-        if transcript_path:
-            return _context_key(platform_name or "session", "transcript", transcript_path)
+    if payload_key:
+        return payload_key
 
     if allow_environment_context:
         env_context_key = _lookup_env_context_key(platform_name)

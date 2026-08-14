@@ -796,6 +796,8 @@ describe("regression: task auto-activation failure diagnostics (issue #430)", ()
   // scenario — scrub every platform session/transcript key before overlay.
   const AMBIENT_SESSION_ENV_KEYS = [
     "TRELLIS_CONTEXT_ID",
+    "DSH_SHELL",
+    "DSH_SESSION_ID",
     "CLAUDE_SESSION_ID",
     "CLAUDE_CODE_SESSION_ID",
     "CODEX_SESSION_ID",
@@ -1668,6 +1670,8 @@ describe("regression: current-task path normalization", () => {
 
   const SESSION_ENV_KEYS = [
     "TRELLIS_CONTEXT_ID",
+    "DSH_SHELL",
+    "DSH_SESSION_ID",
     "CLAUDE_SESSION_ID",
     "CLAUDE_CODE_SESSION_ID",
     "CODEX_SESSION_ID",
@@ -2786,6 +2790,59 @@ print(json.dumps({
     expect(context.current_task).toBe(".trellis/tasks/issue-106");
   });
 
+  it("[nested-host] managed DSH shell outranks an inherited outer Trellis override", () => {
+    setupTaskRepo();
+    const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
+
+    const output = execSync(
+      `${pythonCmd} ${JSON.stringify(taskScriptPath)} start ${JSON.stringify(".trellis/tasks/issue-106")}`,
+      {
+        cwd: tmpDir,
+        encoding: "utf-8",
+        env: sessionEnv({
+          TRELLIS_CONTEXT_ID: "claude_outer-session",
+          DSH_SHELL: "1",
+          DSH_SESSION_ID: "inner-session",
+        }),
+      },
+    );
+
+    expect(output).toContain("Source: session:dsh_inner-session");
+    const sessionsDir = path.join(tmpDir, ".trellis", ".runtime", "sessions");
+    expect(fs.existsSync(path.join(sessionsDir, "dsh_inner-session.json"))).toBe(
+      true,
+    );
+    expect(
+      fs.existsSync(path.join(sessionsDir, "claude_outer-session.json")),
+    ).toBe(false);
+  });
+
+  it("[nested-host] DSH_SESSION_ID alone does not displace an explicit Trellis override", () => {
+    setupTaskRepo();
+    const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
+
+    const output = execSync(
+      `${pythonCmd} ${JSON.stringify(taskScriptPath)} start ${JSON.stringify(".trellis/tasks/issue-106")}`,
+      {
+        cwd: tmpDir,
+        encoding: "utf-8",
+        env: sessionEnv({
+          TRELLIS_CONTEXT_ID: "claude_outer-session",
+          DSH_SESSION_ID: "unmanaged-session",
+        }),
+      },
+    );
+
+    expect(output).toContain("Source: session:claude_outer-session");
+    const sessionsDir = path.join(tmpDir, ".trellis", ".runtime", "sessions");
+    expect(
+      fs.existsSync(path.join(sessionsDir, "claude_outer-session.json")),
+    ).toBe(true);
+    expect(
+      fs.existsSync(path.join(sessionsDir, "dsh_unmanaged-session.json")),
+    ).toBe(false);
+  });
+
   // ==========================================================================
   // [env-name-purge] active_task.py's env tables may only name real variables
   // ==========================================================================
@@ -2830,6 +2887,8 @@ print(json.dumps({
         "        for _key in _entry_keys:",
         "            os.environ.pop(_key, None)",
         'os.environ.pop("TRELLIS_CONTEXT_ID", None)',
+        'os.environ.pop("DSH_SHELL", None)',
+        'os.environ.pop("DSH_SESSION_ID", None)',
         ...bodyLines,
       ].join("\n"),
     );
@@ -3363,6 +3422,39 @@ print(json.dumps({
 
     expect(fs.readFileSync(envFile, "utf-8")).toContain(
       "export TRELLIS_CONTEXT_ID=claude_bash-start-a",
+    );
+  });
+
+  it("[nested-host] Claude SessionStart persists the payload key over an inherited override", () => {
+    setupTaskRepo();
+    const sessionStartScript = getSharedHookScripts().find(
+      (hook) => hook.name === "session-start.py",
+    )?.content;
+    writeProjectFile(
+      path.join(".claude", "hooks", "session-start.py"),
+      expectTemplateContent(sessionStartScript, "claude session-start"),
+    );
+    const envFile = path.join(tmpDir, "claude-env.sh");
+
+    runPython(
+      path.join(".claude", "hooks", "session-start.py"),
+      JSON.stringify({
+        session_id: "inner-session",
+        transcript_path: path.join(tmpDir, "transcript.jsonl"),
+        cwd: tmpDir,
+        hook_event_name: "SessionStart",
+      }),
+      {
+        CLAUDE_ENV_FILE: envFile,
+        TRELLIS_CONTEXT_ID: "claude_outer-session",
+      },
+    );
+
+    expect(fs.readFileSync(envFile, "utf-8")).toContain(
+      "export TRELLIS_CONTEXT_ID=claude_inner-session",
+    );
+    expect(fs.readFileSync(envFile, "utf-8")).not.toContain(
+      "export TRELLIS_CONTEXT_ID=claude_outer-session",
     );
   });
 
@@ -4683,6 +4775,51 @@ print(json.dumps({
     expect(active.taskPath).toBe(".trellis/tasks/opencode-task");
     expect(active.source).toBe("session:opencode_oc-a");
     expect(active.stale).toBe(false);
+  });
+
+  it("[nested-host] OpenCode resolver prefers plugin sessionID over a foreign inherited override", () => {
+    setupTaskRepo();
+    writeProjectFile(
+      path.join(".trellis", ".runtime", "sessions", "opencode_oc-inner.json"),
+      JSON.stringify(
+        {
+          current_task: ".trellis/tasks/issue-106",
+          platform: "opencode",
+        },
+        null,
+        2,
+      ),
+    );
+    writeProjectFile(
+      path.join(".trellis", ".runtime", "sessions", "claude_outer-session.json"),
+      JSON.stringify(
+        {
+          current_task: ".trellis/tasks/issue-106",
+          platform: "claude",
+        },
+        null,
+        2,
+      ),
+    );
+
+    const previous = process.env.TRELLIS_CONTEXT_ID;
+    process.env.TRELLIS_CONTEXT_ID = "claude_outer-session";
+    try {
+      const ctx = new TrellisContext(tmpDir);
+      expect(ctx.getContextKey({ sessionID: "oc-inner" })).toBe(
+        "opencode_oc-inner",
+      );
+      expect(ctx.getContextKey()).toBe("claude_outer-session");
+
+      const active = ctx.getActiveTask({ sessionID: "oc-inner" });
+      expect(active.source).toBe("session:opencode_oc-inner");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.TRELLIS_CONTEXT_ID;
+      } else {
+        process.env.TRELLIS_CONTEXT_ID = previous;
+      }
+    }
   });
 
   it("[session-current-task] OpenCode resolver ignores OPENCODE_RUN_ID and uses the plugin sessionID", () => {

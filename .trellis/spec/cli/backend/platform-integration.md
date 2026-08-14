@@ -385,23 +385,33 @@ Do not add direct `.trellis/.current-task` reads in hooks, statusline scripts,
 sub-agent context injection, or platform plugins. Direct reads reintroduce
 multi-window task pollution.
 
-Context-key precedence, as implemented in `active_task.py:resolve_context_key`
-(`:468-509`):
+Context-key precedence, as implemented in `active_task.py:resolve_context_key`:
 
-1. `TRELLIS_CONTEXT_ID` environment override for subprocesses.
-2. From the hook payload: `session_id`, `sessionId`, or `sessionID`.
-3. From the hook payload: `conversation_id` / `conversationId` / `conversationID`.
-4. From the hook payload: `transcript_path` / `transcriptPath` / `transcript`
+1. A **proven innermost-host** identity, when one exists. This is not the
+   env-table walk. A proof must show the current process rebuilt its own
+   session identity; leftover or hand-set native vars are not enough. The
+   only current proof is `DSH_SHELL=1` plus `DSH_SESSION_ID` (dsh
+   `0.1.0-rc.6`, 2026-08-14). Do not add `DSH_SESSION_ID` to
+   `_ENV_SESSION_KEYS` from this — an untargeted lookup would steal Claude
+   or Codex sessions that happen to carry a leftover DSH id.
+2. `TRELLIS_CONTEXT_ID` environment override for subprocesses, **unless**
+   the hook payload names a different session. The override is how hooks
+   hand identity to `task.py`. A nested agent inherits it too (issue #549),
+   so a conflicting payload — first-party evidence of the process running
+   now — wins.
+3. From the hook payload: `session_id`, `sessionId`, or `sessionID`.
+4. From the hook payload: `conversation_id` / `conversationId` / `conversationID`.
+5. From the hook payload: `transcript_path` / `transcriptPath` / `transcript`
    when non-empty.
-5. A platform-native session environment variable — but only for the handful of
+6. A platform-native session environment variable — but only for the handful of
    names that have actually been verified to exist, and only for the platform
    the resolver detected (`_iter_env_keys` filters by platform name, so ZCode's
    entry cannot fire in a Claude session). Session names are tried first, then
    conversation names, then transcript names (`active_task.py:294-322`).
-6. A short-lived shell ticket, checked **last** and **not** gated on platform
-   name (`active_task.py:505-508`) — see "Shell-ticket bridge" below. Last on
-   purpose: a platform that genuinely exports identity into the shell outranks
-   a ticket written on its behalf.
+7. A short-lived shell ticket, checked **last** and **not** gated on platform
+   name — see "Shell-ticket bridge" below. Last on purpose: a platform that
+   genuinely exports identity into the shell outranks a ticket written on
+   its behalf.
 
 The env tables live at `active_task.py:59-134`. Do not add a name to them by
 analogy with a neighbour: a 2026-08-05 audit of all 21 platforms found 12 of

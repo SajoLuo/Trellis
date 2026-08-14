@@ -425,11 +425,12 @@ All current-task consumers must use the active task resolver instead of reading
 `.trellis/.current-task` directly. The resolver is the single source of truth
 for session/window scoped task state:
 
-1. Derive a context key, in this order (`resolve_context_key`, `:468-509`):
-   `TRELLIS_CONTEXT_ID`; then session / conversation / transcript ids from the
-   hook payload; then a platform-native session environment variable for the
-   detected platform; then a shell ticket for a matching AI-run `task.py`
-   command.
+1. Derive a context key, in this order (`resolve_context_key`):
+   a proven innermost-host identity (see below); then `TRELLIS_CONTEXT_ID`,
+   unless a hook payload names a different session; then session /
+   conversation / transcript ids from the hook payload; then a
+   platform-native session environment variable for the detected platform;
+   then a shell ticket for a matching AI-run `task.py` command.
 2. Read `.trellis/.runtime/sessions/<session-key>.json`.
 3. If no context key or no session task is present, return no active task.
 4. If a session task exists but the task directory is stale, return stale
@@ -448,11 +449,26 @@ platforms the ticket — checked *last* — is the path that actually fires.
 | `clear_active_task(...)` | Deletes the session file that supplied the resolved active task; returns no active task without a context key |
 
 `TRELLIS_CONTEXT_ID` is a context-key override for subprocesses. It is not a
-second task pointer and must never store a task path. A plain AI-run shell
-command cannot infer the current conversation/window unless the host process
-exports session identity in its environment or the command is launched with
-`TRELLIS_CONTEXT_ID`; without that identity, `task.py start` fails and explains
-how to provide a session runtime. For Claude Code, SessionStart receives
+second task pointer and must never store a task path. Inheritance is the
+feature that lets a hook hand identity to `task.py`. The same inheritance
+makes a nested agent session look like a script we spawned (issue #549), so
+the override loses when:
+
+- a **proven innermost host** is present — today that is only
+  `DSH_SHELL=1` plus `DSH_SESSION_ID`, because a managed DSH shell wipes and
+  rebuilds the `DSH_*` namespace (verified 2026-08-14, dsh `0.1.0-rc.6`).
+  Bare `DSH_SESSION_ID` is not a proof and must not enter `_ENV_SESSION_KEYS`
+  on that basis: an untargeted lookup would let a leftover value claim a
+  Claude or Codex session.
+- the hook payload carries a session / conversation / transcript id that
+  produces a **different** key than the override. The payload is first-party
+  evidence of the process running now.
+
+A plain AI-run shell command cannot infer the current conversation/window
+unless the host process exports session identity in its environment or the
+command is launched with `TRELLIS_CONTEXT_ID`; without that identity,
+`task.py start` fails and explains how to provide a session runtime.
+For Claude Code, SessionStart receives
 `CLAUDE_ENV_FILE`; Trellis must append `export TRELLIS_CONTEXT_ID=<context-key>`
 there so later Bash tools inherit the same session identity. For OpenCode,
 `tool.execute.before` must prefix Bash commands with

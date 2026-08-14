@@ -334,18 +334,26 @@ export class TrellisContext {
   // name in the 1.17.18 binary or the 1.18.13 source carries one. The plugin
   // hook input is the only source, and the `export TRELLIS_CONTEXT_ID=` prefix
   // this plugin adds to Bash commands is the only way that identity reaches a
-  // child process. TRELLIS_CONTEXT_ID is honored here so a nested Trellis run
-  // inherits its parent's key; do not add platform-native env names next to it
-  // without evidence a vendor sets them.
+  // child process. Honor TRELLIS_CONTEXT_ID for those children, but not when
+  // the current hook payload names a different session — that is a nested
+  // host inheriting an outer override (issue #549). Do not add platform-native
+  // env names next to it without evidence a vendor sets them.
   getContextKey(platformInput = null) {
-    const override = stringValue(process.env.TRELLIS_CONTEXT_ID)
-    if (override) {
-      return sanitizeKey(override) || hashValue(override)
-    }
-
     const input = platformInput && typeof platformInput === "object" ? platformInput : null
-    if (!input) return null
+    const payloadKey = input ? this._payloadContextKey(input) : null
+    const override = stringValue(process.env.TRELLIS_CONTEXT_ID)
+    const overrideKey = override ? (sanitizeKey(override) || hashValue(override)) : null
 
+    if (payloadKey && overrideKey && payloadKey !== overrideKey) {
+      return payloadKey
+    }
+    if (overrideKey) {
+      return overrideKey
+    }
+    return payloadKey
+  }
+
+  _payloadContextKey(input) {
     const sessionID = lookupString(input, ["session_id", "sessionId", "sessionID"])
     if (sessionID) return buildContextKey("opencode", "session", sessionID)
 
