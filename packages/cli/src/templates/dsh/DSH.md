@@ -20,6 +20,17 @@ trellis init --dsh -u your-name
 dsh web        # or: dsh --profile headless "start a Trellis task for ..."
 ```
 
+The companion plugin is optional and profile-scoped. Install it only into the
+profiles you actually use:
+
+```bash
+dsh plugin --profile web add dsh-trellis
+dsh plugin --profile headless add dsh-trellis
+```
+
+Repeat the command for any additional profile, such as `tui`. `trellis init
+--dsh` deliberately does not modify DSH profiles.
+
 In dsh:
 
 1. Describe the work in natural language and load `trellis-start` when a

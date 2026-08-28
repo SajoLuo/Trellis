@@ -51,6 +51,9 @@ describe("dsh template readers", () => {
     expect(guide).toContain("If unavailable");
     expect(guide).toContain("once per dependent child id");
     expect(guide).toContain("run_in_background: false");
+    expect(guide).toContain("dsh plugin --profile web add dsh-trellis");
+    expect(guide).toContain("dsh plugin --profile headless add dsh-trellis");
+    expect(guide).toContain("deliberately does not modify DSH profiles");
     expect(guide).toContain("DSH_TRELLIS_CONTEXT_ID");
     expect(guide).toContain("`DSH_SHELL=1` together with `DSH_SESSION_ID`");
     expect(guide).toContain("including nested launches");
