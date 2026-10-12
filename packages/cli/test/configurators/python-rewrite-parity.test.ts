@@ -56,14 +56,11 @@ vi.mock("../../src/templates/reasonix/index.js", async (importOriginal) => {
   };
 });
 
-const {
-  collectPlatformTemplates,
-  configurePlatform,
-} = await import("../../src/configurators/index.js");
+const { collectPlatformTemplates, configurePlatform } =
+  await import("../../src/configurators/index.js");
 const { setWriteMode } = await import("../../src/utils/file-writer.js");
-const { resetResolvedPythonCommand, setResolvedPythonCommand } = await import(
-  "../../src/configurators/shared.js"
-);
+const { resetResolvedPythonCommand, setResolvedPythonCommand } =
+  await import("../../src/configurators/shared.js");
 
 /** The previously-raw write sites, one file each. */
 const RAW_WRITE_SITES = [
@@ -76,7 +73,9 @@ async function configureInto(
   id: (typeof RAW_WRITE_SITES)[number][0],
   relPath: string,
 ): Promise<string> {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `trellis-pyrewrite-${id}-`));
+  const dir = fs.mkdtempSync(
+    path.join(os.tmpdir(), `trellis-pyrewrite-${id}-`),
+  );
   try {
     await configurePlatform(id, dir);
     return fs.readFileSync(path.join(dir, ...relPath.split("/")), "utf-8");
@@ -96,6 +95,7 @@ describe("python3 rewrite reaches the previously-raw write sites", () => {
   });
 
   it("leaves the literal alone under the default (POSIX) rendering", async () => {
+    setResolvedPythonCommand("python3");
     // Guards the test itself: proves the injected literal really reaches disk,
     // so the Windows case below is measuring the rewrite and not a dead mock.
     for (const [id, relPath] of RAW_WRITE_SITES) {

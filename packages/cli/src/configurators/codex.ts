@@ -106,7 +106,7 @@ export function applyCodexAgentModelKeys(
   }
 
   return freshContent.replace(
-    /^(sandbox_mode\s*=\s*".*"\n)/m,
+    /^(sandbox_mode\s*=\s*".*"\r?\n)/m,
     (matched) => `${matched}${lines.join("\n")}\n`,
   );
 }

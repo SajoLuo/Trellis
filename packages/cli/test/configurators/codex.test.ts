@@ -100,6 +100,31 @@ describe("extractCodexAgentModelKeys", () => {
 // ---------------------------------------------------------------------------
 
 describe("applyCodexAgentModelKeys", () => {
+  it.each(["\n", "\r\n"])(
+    "inserts keys after the sandbox line with %j while preserving the surrounding bytes",
+    (newline) => {
+      const prefix =
+        ['name = "trellis-check"', 'sandbox_mode = "workspace-write"'].join(
+          newline,
+        ) + newline;
+      const body =
+        [
+          '# model = "hint-only"',
+          "",
+          'developer_instructions = """body"""',
+        ].join(newline) + newline;
+      const result = applyCodexAgentModelKeys(prefix + body, {
+        model: "user-model",
+        model_reasoning_effort: "low",
+      });
+      expect(result).toBe(
+        prefix +
+          'model = "user-model"\nmodel_reasoning_effort = "low"\n' +
+          body,
+      );
+    },
+  );
+
   const fresh = [
     'name = "trellis-implement"',
     'sandbox_mode = "workspace-write"',
@@ -165,6 +190,40 @@ describe("preserveCodexAgentModelKeys", () => {
     return files;
   }
 
+  it.each(["\n", "\r\n"])(
+    "preserves on-disk model keys through the real filesystem for %j profiles",
+    (newline) => {
+      const relativePath = ".codex/agents/trellis-check.toml";
+      const profilePath = path.join(tmpDir, relativePath);
+      fs.mkdirSync(path.dirname(profilePath), { recursive: true });
+      const header =
+        ['name = "trellis-check"', 'sandbox_mode = "workspace-write"'].join(
+          newline,
+        ) + newline;
+      const body =
+        [
+          '# model = "hint-only"',
+          'developer_instructions = """',
+          'model = "example-inside-body"',
+          '"""',
+        ].join(newline) + newline;
+      const pinned = 'model = "user-model"\nmodel_reasoning_effort = "low"\n';
+      fs.writeFileSync(profilePath, header + pinned + body, "utf-8");
+      const files = new Map([[relativePath, header + body]]);
+
+      preserveCodexAgentModelKeys(tmpDir, files);
+      expect(files.get(relativePath)).toBe(header + pinned + body);
+      // Rendering is read-only with respect to the existing user profile.
+      expect(fs.readFileSync(profilePath, "utf-8")).toBe(
+        header + pinned + body,
+      );
+
+      const rerendered = new Map([[relativePath, header + body]]);
+      preserveCodexAgentModelKeys(tmpDir, rerendered);
+      expect(rerendered.get(relativePath)).toBe(header + pinned + body);
+    },
+  );
+
   it("leaves fresh render untouched when no on-disk file exists (fresh init)", () => {
     const files = freshAgentFiles();
     const before = new Map(files);
@@ -220,9 +279,9 @@ describe("preserveCodexAgentModelKeys", () => {
     );
     files = freshAgentFiles();
     preserveCodexAgentModelKeys(tmpDir, files);
-    expect(
-      files.get(`.codex/agents/${firstAgent.name}.toml`),
-    ).not.toMatch(/^model = "/m);
+    expect(files.get(`.codex/agents/${firstAgent.name}.toml`)).not.toMatch(
+      /^model = "/m,
+    );
   });
 
   it("does not touch files outside .codex/agents/trellis-*.toml", () => {
