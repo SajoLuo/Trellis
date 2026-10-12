@@ -8,9 +8,9 @@ review roles, and exposes a stable `DSH_SESSION_ID` to every managed shell.
 | --- | --- | --- |
 | Shared and entry skills | Works | Works |
 | Session-scoped active task | Works through verified `DSH_SHELL=1` + `DSH_SESSION_ID`, including nested launches | Managed per-execution identity can forward a distinct child session |
-| Implement/check/research roles | Foreground native sub-agent | Background native sub-agent |
+| Implement/check/research roles | Legacy foreground, verified native yield/result path, or main-session fallback | Native sub-agent with `trellis_wait` when exposed; otherwise the same capability-selected fallback |
 | Per-turn workflow breadcrumb | Not available | Injected from `workflow.md` |
-| Event-driven child wait | Not available | `trellis_wait` |
+| Event-driven child synchronization | No dedicated wait tool; native notification/yield may be available | `trellis_wait` when present in the actual tool catalog; otherwise the same native/foreground/main-session paths |
 | Utility commands | Not available | `/trellis-status`, `/trellis-finish` |
 
 ## Quick start
@@ -44,15 +44,35 @@ In dsh:
 ## Companion plugin fallback contract
 
 The Trellis adapter does not install a DSH profile plugin. Before dispatching a
-role, check whether the `trellis_wait` tool is available:
+role, inspect the actual tool catalog and `subagent` schema, not plugin presence
+alone. DSH 0.2.1-alpha.2 returns a `subagentId` immediately and has no
+`run_in_background` parameter; a returned child id is not completion evidence.
 
-- If available, use DSH's default continuable background mode, continue
-  independent work, then call `trellis_wait` once per dependent child id and
-  consume each native settlement notice before entering the dependent gate.
-- If unavailable, dispatch every child with `run_in_background: false` from the outset
-  so the dependent workflow gate cannot overtake it.
+- If available, use `trellis_wait` with the normal continuable `subagent`
+  contract, continue independent work, then call it once per dependent child id.
+  Require a successful settled outcome and inspect the actual report or
+  transcript before entering the dependent gate. A wait result or end event
+  does not prove a native settlement notice was queued or delivered;
+  `settlementNoticeQueued: false` means delivery is unverified, not that it
+  definitely failed. Do not wait for a separate notice after a verified result.
+- If unavailable, use `run_in_background: false` only when the legacy tool
+  schema supports it. Inspect the successful returned outcome and actual report
+  or transcript before the dependent gate. Never send this removed parameter
+  to alpha.2.
+- Without a wait tool or legacy foreground support, dispatch only if the host
+  exposes a verified native notification/yield path: yield the parent and
+  consume the actual successful result and report or transcript before the
+  dependent gate. Native settlement notices are best-effort; merely expecting
+  one is not a verified synchronization path.
+- If no reliable synchronization path exists, do the work in the main session,
+  loading the task artifacts and referenced specs directly. Do not start an
+  unsynchronizable child or load a child-only role skill in the main session.
 
-Never replace either path with shell sleep, polling loops, `job_output`, or
+Unknown, aborted, or failed outcomes leave the dependent gate blocked or failed.
+The SDK `session/wait` API is not automatically a model-callable tool: use only
+synchronization tools or native yield behavior actually exposed by the host.
+
+Never replace any path with shell sleep, polling loops, `job_output`, or
 repeated agent-list polling.
 
 ## Nested host sessions
