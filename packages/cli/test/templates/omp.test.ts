@@ -43,7 +43,8 @@ function loadOmpExtension(): OmpExtension {
   });
   vm.runInContext(compiled, sandbox);
   const extension = moduleObject.exports.default;
-  if (!extension) throw new Error("OMP extension template has no default export");
+  if (!extension)
+    throw new Error("OMP extension template has no default export");
   return extension;
 }
 
@@ -86,13 +87,15 @@ describe("omp templates", () => {
   });
 
   it("extension template avoids known runtime and context-safety regressions", () => {
-    const extension = getExtensionTemplate();
+    const extension = getExtensionTemplate().replace(/\r\n/g, "\n");
 
     expect(extension).not.toContain("pi.setLabel(");
     expect(extension).not.toContain("process.env.TRELLIS_CONTEXT_ID =");
     expect(extension).toContain('buildContextKey("omp", "session", sessionId)');
     expect(extension).toContain("realpathSync");
-    expect(extension).toContain("resolveProjectFile(projectRoot, file, trustedRoots)");
+    expect(extension).toContain(
+      "resolveProjectFile(projectRoot, file, trustedRoots)",
+    );
     expect(extension).toContain("readFileSync(targetPath");
     expect(extension).toContain("if (!key) return null;");
     expect(extension).toContain("return key;");
@@ -117,7 +120,12 @@ describe("omp templates", () => {
     };
 
     handler(
-      { type: "tool_call", toolName: "bash", toolCallId: "call-1", input: params },
+      {
+        type: "tool_call",
+        toolName: "bash",
+        toolCallId: "call-1",
+        input: params,
+      },
       { sessionManager: { getSessionId: () => "session/a" } },
     );
 
@@ -136,7 +144,12 @@ describe("omp templates", () => {
     };
 
     handler(
-      { type: "tool_call", toolName: "bash", toolCallId: "call-2", input: params },
+      {
+        type: "tool_call",
+        toolName: "bash",
+        toolCallId: "call-2",
+        input: params,
+      },
       { sessionManager: { getSessionId: () => "session/b" } },
     );
 
@@ -150,7 +163,12 @@ describe("omp templates", () => {
     const params: Record<string, unknown> = { path: "README.md" };
 
     handler(
-      { type: "tool_call", toolName: "read", toolCallId: "call-3", input: params },
+      {
+        type: "tool_call",
+        toolName: "read",
+        toolCallId: "call-3",
+        input: params,
+      },
       { sessionManager: { getSessionId: () => "session/c" } },
     );
 

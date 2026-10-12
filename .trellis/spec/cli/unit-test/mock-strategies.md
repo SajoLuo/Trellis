@@ -122,6 +122,35 @@ expect(inquirer.prompt).not.toHaveBeenCalled();
 
 ## Known Gotchas
 
+### Windows Python and disposable fixture boundaries
+
+- Python probes select `python` on Windows and `python3` elsewhere. Pass `-c`
+  source as an argv element to `spawnSync`, then assert exit status and the real
+  result; shell interpolation of `JSON.stringify(source)` can double-escape it.
+- Normalize CRLF to LF only at semantic Markdown assertion boundaries. Retain
+  all metadata/body checks. For native filesystem labels, assert `path.join`
+  output rather than assuming a POSIX separator; logical manifest keys remain
+  POSIX as documented in the cross-platform guide.
+- A negative "outside a Trellis project" hook test must hide `.trellis`
+  directories outside its disposable fixture from the root walk. Run the real
+  hook and preserve real filesystem behavior inside the fixture; never alter a
+  user's home project or mock the internal root resolver.
+- Env-table probes may replace the external OS process snapshot with `{}` to
+  prevent the enclosing agent's ancestry from overriding synthetic env input.
+  Keep the resolver real and process-binding tests independent. Guard optional
+  `common.proc_walk` availability so older templates still run; never increase
+  timeouts or skip assertions to mask live-ancestry interference.
+
+Atomic-write failure tests may inject one external `fs.renameSync` error to
+model an OS refusal that chmod cannot reliably reproduce on Windows or as root.
+Do not mock the filesystem module: write the real temporary file, assert the
+exact original error is rethrown, preserve the old file bytes, verify temporary
+cleanup and restore the one-shot spy in `finally`.
+
+For unordered concurrent channel producers, compare exact `(by, kind)` pairs
+and output count rather than assuming timer start order equals append completion
+order. Do not increase delays/timeouts or remove per-agent outcome checks.
+
 ### Module-Level State: `setWriteMode`
 
 `file-writer.ts` has module-level state for write mode. If one test sets `force` mode, subsequent tests inherit it unless reset. The `init()` function calls `setWriteMode()` internally, so integration tests that call `init()` are safe. But direct unit tests of `writeFile` must manage this state explicitly.

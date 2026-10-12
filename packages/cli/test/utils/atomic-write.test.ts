@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { writeFileAtomic } from "../../src/utils/atomic-write.js";
 
@@ -30,22 +30,35 @@ describe("writeFileAtomic", () => {
   });
 
   it("preserves the original file when the write fails", () => {
-    const f = path.join(dir, "keep.json");
-    writeFileAtomic(f, "original");
-    // A directory in place of the temp target's parent is not the failure we
-    // model; instead force a rename failure by pointing at an unwritable dir.
-    const roDir = path.join(dir, "ro");
-    fs.mkdirSync(roDir);
-    const target = path.join(roDir, "x.json");
+    const target = path.join(dir, "x.json");
     writeFileAtomic(target, "first");
-    fs.chmodSync(roDir, 0o500); // read+execute only, no write
+    const original = fs.readFileSync(target);
+    const failure = Object.assign(new Error("fixture rename denied"), {
+      code: "EPERM",
+    });
+    // Isolate one external OS failure, not the writer or filesystem: the temp
+    // write, old file readback, and failed-write cleanup all execute for real.
+    const rename = vi
+      .spyOn(fs, "renameSync")
+      .mockImplementationOnce((from, to) => {
+        expect(to).toBe(target);
+        expect(fs.readFileSync(from, "utf-8")).toBe("second");
+        throw failure;
+      });
     try {
-      expect(() => writeFileAtomic(target, "second")).toThrow();
+      let caught: unknown;
+      try {
+        writeFileAtomic(target, "second");
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBe(failure);
+      expect(rename).toHaveBeenCalledTimes(1);
       // Original survives; no half-written temp left in the dir.
-      expect(fs.readFileSync(target, "utf-8")).toBe("first");
-      expect(fs.readdirSync(roDir)).toEqual(["x.json"]);
+      expect(fs.readFileSync(target)).toEqual(original);
+      expect(fs.readdirSync(dir)).toEqual(["x.json"]);
     } finally {
-      fs.chmodSync(roDir, 0o700);
+      rename.mockRestore();
     }
   });
 });

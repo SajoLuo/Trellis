@@ -165,8 +165,21 @@ describe("channelWait kind union (CLI)", () => {
     expect(console.log).toHaveBeenCalledTimes(2);
     const emitted = vi
       .mocked(console.log)
-      .mock.calls.map(([line]) => JSON.parse(String(line)) as { kind: string });
-    expect(emitted.map((e) => e.kind)).toEqual(["killed", "done"]);
+      .mock.calls.map(
+        ([line]) => JSON.parse(String(line)) as { by: string; kind: string },
+      );
+    // Timer order does not guarantee async filesystem completion order.
+    // --all promises a matching event per agent, not cross-agent ordering.
+    expect(
+      emitted
+        .map(({ by, kind }) => ({ by, kind }))
+        .sort(
+          (a, b) => a.by.localeCompare(b.by) || a.kind.localeCompare(b.kind),
+        ),
+    ).toEqual([
+      { by: "worker-a", kind: "killed" },
+      { by: "worker-b", kind: "done" },
+    ]);
   });
 
   it("plain wait (no --kind) does not wake on supervisor_warning", async () => {

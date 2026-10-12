@@ -783,17 +783,17 @@ describe("opencode persisted synthetic context parts", () => {
         );
       }
 
-      expect(parts.map(part => part.text)).toEqual([
+      expect(parts.map((part) => part.text)).toEqual([
         "session context",
         "workflow context",
         "ordinary user prompt",
       ]);
-      expect(parts.map(part => part.id)).toEqual(
+      expect(parts.map((part) => part.id)).toEqual(
         [...parts]
           .sort((left, right) =>
             left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
           )
-          .map(part => part.id),
+          .map((part) => part.id),
       );
       expect(parts[0].id).not.toBe(parts[1].id);
       expect(parts[2]).toEqual(ordinary);
@@ -817,9 +817,7 @@ describe("opencode persisted synthetic context parts", () => {
         "000000000001",
       ),
     ];
-    const unsupportedIdentityBefore = structuredClone(
-      unsupportedIdentityParts,
-    );
+    const unsupportedIdentityBefore = structuredClone(unsupportedIdentityParts);
     expect(() =>
       insertSyntheticTextPart(
         unsupportedIdentityParts,
@@ -834,11 +832,7 @@ describe("opencode persisted synthetic context parts", () => {
     ];
     const missingIdentityBefore = structuredClone(missingIdentityParts);
     expect(() =>
-      insertSyntheticTextPart(
-        missingIdentityParts,
-        "context",
-        "sessionStart",
-      ),
+      insertSyntheticTextPart(missingIdentityParts, "context", "sessionStart"),
     ).toThrow("no ordinary OpenCode part with a persisted identity");
     expect(missingIdentityParts).toEqual(missingIdentityBefore);
 
@@ -1238,10 +1232,7 @@ describe("opencode chat.message subagent skip (issue #264)", () => {
 
       for (const kind of order) {
         const hooks = kind === "sessionStart" ? sessionHooks : workflowHooks;
-        await hooks["chat.message"](
-          { sessionID, agent: "build" },
-          { parts },
-        );
+        await hooks["chat.message"]({ sessionID, agent: "build" }, { parts });
       }
 
       expect(parts).toHaveLength(3);
@@ -1262,7 +1253,7 @@ describe("opencode chat.message subagent skip (issue #264)", () => {
       expect(parts[1].text).toMatch(/^<workflow-state>/);
       expect(parts[1].metadata).toBeUndefined();
       expect(parts[2]).toEqual(ordinary);
-      expect(parts.map(part => part.id)).toEqual(
+      expect(parts.map((part) => part.id)).toEqual(
         [...parts]
           .sort((left, right) => {
             if (typeof left.id !== "string" || typeof right.id !== "string") {
@@ -1270,7 +1261,7 @@ describe("opencode chat.message subagent skip (issue #264)", () => {
             }
             return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
           })
-          .map(part => part.id),
+          .map((part) => part.id),
       );
       contextCollector.clear(sessionID);
     }
@@ -1325,10 +1316,7 @@ describe("opencode chat.message subagent skip (issue #264)", () => {
       ["missing-workflow-identity", workflowHooks],
     ] as const) {
       const parts: ChatMessagePart[] = [{ type: "text", text: "original" }];
-      await hooks["chat.message"](
-        { sessionID, agent: "build" },
-        { parts },
-      );
+      await hooks["chat.message"]({ sessionID, agent: "build" }, { parts });
       expect(parts).toEqual([{ type: "text", text: "original" }]);
       contextCollector.clear(sessionID);
     }
@@ -1381,10 +1369,7 @@ describe("opencode chat.message subagent skip (issue #264)", () => {
           const sessionID = `${key}-${suffix}`;
           const ordinary = createUserTextPart("original", sessionID);
           const parts = [structuredClone(ordinary)];
-          await hooks["chat.message"](
-            { sessionID, agent: "build" },
-            { parts },
-          );
+          await hooks["chat.message"]({ sessionID, agent: "build" }, { parts });
           expect(parts).toEqual([ordinary]);
           contextCollector.clear(sessionID);
         }
@@ -2018,10 +2003,10 @@ describe("opencode context injection limits (issue #441)", () => {
       const prompt = await runImplementHook();
 
       expect(prompt).toContain(
-        "[Trellis: truncated at 10 bytes — read refdir/a.md for the full content]",
+        `[Trellis: truncated at 10 bytes — read ${join("refdir", "a.md")} for the full content]`,
       );
       expect(prompt).toContain(
-        "[Trellis: truncated at 10 bytes — read refdir/b.md for the full content]",
+        `[Trellis: truncated at 10 bytes — read ${join("refdir", "b.md")} for the full content]`,
       );
       expect(prompt).not.toContain("IGNORED_TXT_CONTENT");
     });

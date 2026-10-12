@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { getAllAgents, getSettingsTemplate } from "../../src/templates/trae/index.js";
+import {
+  getAllAgents,
+  getSettingsTemplate,
+} from "../../src/templates/trae/index.js";
 import {
   resolveAllAsSkills,
   resolveSkills,
@@ -67,7 +70,7 @@ describe("trae getAllAgents", () => {
   it("each agent is a Markdown file with YAML frontmatter", () => {
     for (const agent of getAllAgents()) {
       expect(agent.content.length).toBeGreaterThan(0);
-      expect(agent.content).toMatch(/^---\n/);
+      expect(agent.content.replace(/\r\n/g, "\n")).toMatch(/^---\n/);
       expect(agent.content).toContain("name: ");
       expect(agent.content).toContain("description:");
     }
@@ -121,7 +124,10 @@ describe("trae hooks.json registers SessionStart + UserPromptSubmit", () => {
 
   it("includes version field and wires session-start.py under SessionStart", () => {
     const raw = fs.readFileSync(hooksPath, "utf-8");
-    const parsed = JSON.parse(raw) as { version?: number; hooks?: Record<string, unknown> };
+    const parsed = JSON.parse(raw) as {
+      version?: number;
+      hooks?: Record<string, unknown>;
+    };
     expect(parsed.version).toBe(1);
     expect(parsed.hooks).toBeDefined();
     expect(Object.keys(parsed.hooks ?? {})).toContain("SessionStart");
@@ -129,7 +135,9 @@ describe("trae hooks.json registers SessionStart + UserPromptSubmit", () => {
     // Trae docs: matcher is only for PreToolUse/PostToolUse/Notification.
     // SessionStart fires once per new session (source: "startup" only).
     // Having matchers on SessionStart would cause 3x execution or be ignored.
-    const sessionStartGroups = (parsed.hooks as Record<string, Record<string, unknown>[]>)["SessionStart"];
+    const sessionStartGroups = (
+      parsed.hooks as Record<string, Record<string, unknown>[]>
+    )["SessionStart"];
     expect(sessionStartGroups).toHaveLength(1);
     expect(sessionStartGroups[0]).not.toHaveProperty("matcher");
   });
@@ -171,7 +179,9 @@ describe("trae hooks.json registers SessionStart + UserPromptSubmit", () => {
   it("UserPromptSubmit hook group has no matcher", () => {
     const raw = fs.readFileSync(hooksPath, "utf-8");
     const parsed = JSON.parse(raw) as { hooks?: Record<string, unknown> };
-    const userPromptGroups = (parsed.hooks as Record<string, Record<string, unknown>[]>)["UserPromptSubmit"];
+    const userPromptGroups = (
+      parsed.hooks as Record<string, Record<string, unknown>[]>
+    )["UserPromptSubmit"];
     expect(userPromptGroups).toHaveLength(1);
     expect(userPromptGroups[0]).not.toHaveProperty("matcher");
   });
@@ -181,7 +191,7 @@ describe("trae getSettingsTemplate", () => {
   it("returns hooks.json as the target path with version field", () => {
     const settings = getSettingsTemplate();
     expect(settings.targetPath).toBe("hooks.json");
-    expect(settings.content).toContain("\"version\": 1");
+    expect(settings.content).toContain('"version": 1');
     expect(settings.content).toContain("SessionStart");
     expect(settings.content).toContain("UserPromptSubmit");
   });
@@ -197,7 +207,9 @@ describe("trae platform detection in shared inject-workflow-state.py", () => {
       "packages/cli/src/templates/shared-hooks/inject-workflow-state.py",
     );
     const content = fs.readFileSync(hookPath, "utf-8");
-    expect(content).toMatch(/if "\.trae" in script_parts:\s*\n\s*return "trae"/);
+    expect(content).toMatch(
+      /if "\.trae" in script_parts:\s*\n\s*return "trae"/,
+    );
   });
 });
 
@@ -210,7 +222,9 @@ describe("trae platform detection in shared session-start.py", () => {
       "packages/cli/src/templates/shared-hooks/session-start.py",
     );
     const content = fs.readFileSync(hookPath, "utf-8");
-    expect(content).toMatch(/if "\.trae" in script_parts:\s*\n\s*return "trae"/);
+    expect(content).toMatch(
+      /if "\.trae" in script_parts:\s*\n\s*return "trae"/,
+    );
     expect(content).toContain("TRAE_PROJECT_DIR");
   });
 });

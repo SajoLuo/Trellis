@@ -4,9 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { getAllAgents } from "../../src/templates/reasonix/index.js";
-import {
-  collectReasonixTemplates,
-} from "../../src/configurators/reasonix.js";
+import { collectReasonixTemplates } from "../../src/configurators/reasonix.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "../../../..");
@@ -31,7 +29,7 @@ describe("reasonix agent frontmatter", () => {
         "packages/cli/src/templates/reasonix/agents",
         `${name}.md`,
       );
-      const content = fs.readFileSync(filePath, "utf-8");
+      const content = fs.readFileSync(filePath, "utf-8").replace(/\r\n/g, "\n");
       const fm = content.split("---\n")[1] ?? "";
 
       // runAs: subagent is what makes Reasonix invoke these as an isolated
