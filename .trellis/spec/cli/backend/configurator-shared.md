@@ -302,6 +302,27 @@ Configurators must respect these. They are not enforced by types; tests in `test
 
 ## Common pitfalls
 
+### OMP heading removal must accept LF and CRLF
+
+`wrapWithOmpFrontmatter(name: string, content: string): string` removes only a
+leading H1 and its blank line before adding OMP frontmatter. Match both newline
+styles with `/^# [^\r\n]+\r?\n\r?\n/`; do not use the LF-only
+`/^# [^\n]+\n\n/` or normalize the remaining body. The latter leaves duplicate
+titles on CRLF input; whole-body normalization changes template bytes unnecessarily.
+
+Keep `test/configurators/shared.test.ts` LF/CRLF cases asserting exact remaining
+body bytes, including mixed-newline content. Run the OMP template tests and the
+init/update parity oracle because both consumers share this wrapper.
+
+### Codex user model keys must survive CRLF rendering
+
+`configurators/codex.ts:applyCodexAgentModelKeys` re-inserts preserved user
+`model` and `model_reasoning_effort` keys after the `sandbox_mode` line. That
+line must match `\r?\n`, not LF alone; otherwise CRLF init/update output silently
+omits the user settings. Keep surrounding template bytes and the existing
+insertion/escaping rules unchanged. Test exact LF/CRLF outputs plus real-file
+`preserveCodexAgentModelKeys` reads, repeated rendering and unchanged user files.
+
 ### Adding platform-specific behavior to `shared.ts`
 
 Wrong:

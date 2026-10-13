@@ -329,7 +329,7 @@ export function wrapWithOmpFrontmatter(name: string, content: string): string {
     );
   }
   // Strip leading H1 + blank line from template body
-  const body = content.replace(/^# [^\n]+\n\n/, "");
+  const body = content.replace(/^# [^\r\n]+\r?\n\r?\n/, "");
   const hint = COMMAND_ARGUMENT_HINTS[baseName];
   // JSON.stringify produces a double-quoted YAML scalar, safe even when the
   // description contains a colon (see wrapWithCommandFrontmatter).

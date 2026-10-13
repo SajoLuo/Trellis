@@ -577,6 +577,18 @@ describe("resolveSkillsNeutral / resolveAllAsSkillsNeutral", () => {
 // ---------------------------------------------------------------------------
 
 describe("wrapWithOmpFrontmatter", () => {
+  it.each(["\n", "\r\n"])(
+    "strips an H1 with %j line endings while preserving every body byte",
+    (newline) => {
+      const body = `Line 1${newline}${newline}## Section${newline}Final line\r\n`;
+      const content = `# Continue Current Task${newline}${newline}${body}`;
+      expect(wrapWithOmpFrontmatter("continue", content)).toBe(
+        '---\ndescription: "Resume work on the current task at the correct phase."\n---\n\n' +
+          body,
+      );
+    },
+  );
+
   it("wraps continue command with description-only frontmatter", () => {
     const content =
       "# Continue Current Task\n\nResume work on the current task.";

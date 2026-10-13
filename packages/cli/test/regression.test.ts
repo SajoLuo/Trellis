@@ -350,7 +350,7 @@ ${separator}
 
   function runAddSession(title: string, options?: { branch?: string }): void {
     const command = [
-      "python3",
+      process.platform === "win32" ? "python" : "python3",
       JSON.stringify(
         path.join(tmpDir, ".trellis", "scripts", "add_session.py"),
       ),
@@ -1233,7 +1233,10 @@ describe("regression: JSON read/write failure reporting", () => {
       ]).status,
     ).toBe(0);
     const name = `${datePrefix}-latin`;
-    fs.writeFileSync(taskJsonPath(name), Buffer.from([0x7b, 0x22, 0xff, 0x22, 0x7d]));
+    fs.writeFileSync(
+      taskJsonPath(name),
+      Buffer.from([0x7b, 0x22, 0xff, 0x22, 0x7d]),
+    );
 
     const r = runTask(["set-meta", name, "k", "v"]);
     expect(r.status).not.toBe(0);
@@ -4585,7 +4588,7 @@ print(json.dumps({
   function contextIdExports(envFile: string): string[] {
     return fs
       .readFileSync(envFile, "utf-8")
-      .split("\n")
+      .split(/\r?\n/)
       .filter((line) => line.startsWith("export TRELLIS_CONTEXT_ID="));
   }
 
@@ -5383,8 +5386,7 @@ print(json.dumps({
       ),
     );
 
-    const unicodePrompt =
-      "检查测试质量。\n第二行 TOKEN_CODEBUDDY_HOOK_TEST";
+    const unicodePrompt = "检查测试质量。\n第二行 TOKEN_CODEBUDDY_HOOK_TEST";
     const hookOutput = runPython(
       path.join(".codebuddy", "hooks", "inject-subagent-context.py"),
       JSON.stringify({
@@ -6653,7 +6655,9 @@ print(json.dumps({
     };
     const context = parsed.hookSpecificOutput.additionalContext;
     expect(context).toContain("Task: issue-106 (task_error)");
-    expect(context).toContain("Repair the active task record before continuing.");
+    expect(context).toContain(
+      "Repair the active task record before continuing.",
+    );
     expect(context).not.toContain("Status: no_task");
   });
 
@@ -6697,7 +6701,9 @@ print(json.dumps({
     };
     const context = parsed.hookSpecificOutput.additionalContext;
     expect(context).toContain("Task: issue-106 (task_error)");
-    expect(context).toContain("Repair the active task record before continuing.");
+    expect(context).toContain(
+      "Repair the active task record before continuing.",
+    );
     expect(context).not.toContain("Status: no_task");
   });
 
@@ -6760,12 +6766,30 @@ print(json.dumps({
         ),
         hookPath,
       );
-      const result = execSync(`${pythonCmd} ${JSON.stringify(hookPath)}`, {
+      const probe = [
+        "import importlib.util, pathlib, sys",
+        "from unittest.mock import patch",
+        "fixture = pathlib.Path(sys.argv[1]).resolve()",
+        "spec = importlib.util.spec_from_file_location('workflow_hook', fixture / 'hook.py')",
+        "hook = importlib.util.module_from_spec(spec)",
+        "spec.loader.exec_module(hook)",
+        "real_is_dir = pathlib.Path.is_dir",
+        "def fixture_is_dir(candidate):",
+        "    # Hide external ancestor projects only; fixture filesystem stays real.",
+        "    if candidate.name == '.trellis' and fixture not in candidate.parents:",
+        "        return False",
+        "    return real_is_dir(candidate)",
+        "with patch.object(pathlib.Path, 'is_dir', fixture_is_dir):",
+        "    sys.exit(hook.main())",
+      ].join("\n");
+      const result = spawnSync(pythonCmd, ["-c", probe, nonTrellisDir], {
         cwd: nonTrellisDir,
         input: JSON.stringify({ cwd: nonTrellisDir }),
         encoding: "utf-8",
+        env: sessionEnv(),
       });
-      expect(result.trim()).toBe("");
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.stdout.trim()).toBe("");
     } finally {
       fs.rmSync(nonTrellisDir, { recursive: true, force: true });
     }
@@ -7132,7 +7156,12 @@ print(len(entries))
         checkContent,
         "utf-8",
       );
-      const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
+      const taskScriptPath = path.join(
+        tmpDir,
+        ".trellis",
+        "scripts",
+        "task.py",
+      );
       return spawnSync(
         pythonCmd,
         [taskScriptPath, "validate", ".trellis/tasks/issue-106"],
@@ -7143,26 +7172,27 @@ print(len(entries))
     it("rejects a placeholder-only implement.jsonl with file, line, and remediation", () => {
       const result = validateWith(placeholderRow, curatedRow);
       expect(result.status).toBe(1);
-      expect(result.stdout).toContain("implement.jsonl:1: Placeholder `_example` row");
       expect(result.stdout).toContain(
-        '{"file": "<path>", "reason": "<why>"}',
+        "implement.jsonl:1: Placeholder `_example` row",
       );
+      expect(result.stdout).toContain('{"file": "<path>", "reason": "<why>"}');
       expect(result.stdout).toContain("Validation failed (1 errors)");
     });
 
     it("rejects a placeholder row in check.jsonl too", () => {
       const result = validateWith(curatedRow, placeholderRow);
       expect(result.status).toBe(1);
-      expect(result.stdout).toContain("check.jsonl:1: Placeholder `_example` row");
+      expect(result.stdout).toContain(
+        "check.jsonl:1: Placeholder `_example` row",
+      );
     });
 
     it("rejects a placeholder row that sits alongside curated entries", () => {
-      const result = validateWith(
-        `${placeholderRow}${curatedRow}`,
-        curatedRow,
-      );
+      const result = validateWith(`${placeholderRow}${curatedRow}`, curatedRow);
       expect(result.status).toBe(1);
-      expect(result.stdout).toContain("implement.jsonl:1: Placeholder `_example` row");
+      expect(result.stdout).toContain(
+        "implement.jsonl:1: Placeholder `_example` row",
+      );
       expect(result.stdout).toContain("Validation failed (1 errors)");
     });
 
@@ -7186,7 +7216,12 @@ print(len(entries))
         '{"file":".trellis/spec/guides/index.md","reason":"guideline"}\n';
       fs.writeFileSync(path.join(taskDir, "implement.jsonl"), curated, "utf-8");
       fs.writeFileSync(path.join(taskDir, "check.jsonl"), curated, "utf-8");
-      const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
+      const taskScriptPath = path.join(
+        tmpDir,
+        ".trellis",
+        "scripts",
+        "task.py",
+      );
       const result = spawnSync(
         pythonCmd,
         [taskScriptPath, "validate", ".trellis/tasks/issue-106"],
@@ -7205,7 +7240,10 @@ print(len(entries))
     it("reports a non-object row instead of crashing on it", () => {
       // Valid JSON, wrong shape — the row must be an error with a line
       // number, not an AttributeError traceback out of `data.get`.
-      const result = validateWith('"just a string"\n[1, 2]\nnull\n', curatedRow);
+      const result = validateWith(
+        '"just a string"\n[1, 2]\nnull\n',
+        curatedRow,
+      );
       expect(result.status).toBe(1);
       expect(result.stderr).not.toContain("Traceback");
       for (const line of [1, 2, 3]) {
@@ -7227,7 +7265,12 @@ print(len(entries))
         "utf-8",
       );
       fs.writeFileSync(path.join(taskDir, "check.jsonl"), "", "utf-8");
-      const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
+      const taskScriptPath = path.join(
+        tmpDir,
+        ".trellis",
+        "scripts",
+        "task.py",
+      );
       const result = spawnSync(
         pythonCmd,
         [taskScriptPath, "list-context", ".trellis/tasks/issue-106"],
@@ -7259,7 +7302,12 @@ print(len(entries))
         "utf-8",
       );
       fs.writeFileSync(path.join(archivedDir, "check.jsonl"), "", "utf-8");
-      const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
+      const taskScriptPath = path.join(
+        tmpDir,
+        ".trellis",
+        "scripts",
+        "task.py",
+      );
       const result = spawnSync(
         pythonCmd,
         [
@@ -7270,7 +7318,9 @@ print(len(entries))
         { cwd: tmpDir, encoding: "utf-8", env: sessionEnv() },
       );
       expect(result.status).toBe(1);
-      expect(result.stdout).toContain("implement.jsonl:1: Placeholder `_example` row");
+      expect(result.stdout).toContain(
+        "implement.jsonl:1: Placeholder `_example` row",
+      );
     });
   });
 
@@ -7278,10 +7328,17 @@ print(len(entries))
     const curatedRow =
       '{"file":".trellis/spec/guides/index.md","reason":"guideline"}\n';
 
-    function writeManifests(implement: string | null, check: string | null): void {
+    function writeManifests(
+      implement: string | null,
+      check: string | null,
+    ): void {
       const taskDir = path.join(tmpDir, ".trellis", "tasks", "issue-106");
       if (implement !== null) {
-        fs.writeFileSync(path.join(taskDir, "implement.jsonl"), implement, "utf-8");
+        fs.writeFileSync(
+          path.join(taskDir, "implement.jsonl"),
+          implement,
+          "utf-8",
+        );
       }
       if (check !== null) {
         fs.writeFileSync(path.join(taskDir, "check.jsonl"), check, "utf-8");
@@ -7289,7 +7346,12 @@ print(len(entries))
     }
 
     function runStart(...extra: string[]): ReturnType<typeof spawnSync> {
-      const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
+      const taskScriptPath = path.join(
+        tmpDir,
+        ".trellis",
+        "scripts",
+        "task.py",
+      );
       return spawnSync(
         pythonCmd,
         [taskScriptPath, "start", ".trellis/tasks/issue-106", ...extra],
@@ -7629,11 +7691,12 @@ print(len(entries))
       "result = {'M': mod._strip_breadcrumb_tag_blocks(matched), 'X': mod._strip_breadcrumb_tag_blocks(mismatched), 'N': mod._strip_breadcrumb_tag_blocks(nested_orphan)}",
       "print(json.dumps(result))",
     ].join("; ");
-    const output = execSync(`${pythonCmd} -c ${JSON.stringify(probe)}`, {
+    const execution = spawnSync(pythonCmd, ["-c", probe], {
       cwd: tmpDir,
       encoding: "utf-8",
     });
-    const lastLine = output
+    expect(execution.status, execution.stderr).toBe(0);
+    const lastLine = execution.stdout
       .split("\n")
       .filter((l) => l.startsWith("{"))
       .pop();
@@ -8690,7 +8753,11 @@ print(len(entries))
     setupTaskRepo();
     initTaskGitRepo("main");
     execSync("git checkout -q -b feature/record-me", { cwd: tmpDir });
-    patchIssue106Task({ status: "planning", branch: null, base_branch: "main" });
+    patchIssue106Task({
+      status: "planning",
+      branch: null,
+      base_branch: "main",
+    });
 
     const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
     const result = spawnSync(
@@ -8739,7 +8806,11 @@ print(len(entries))
     setupTaskRepo();
     initTaskGitRepo("main");
     execSync("git checkout -q --detach", { cwd: tmpDir });
-    patchIssue106Task({ status: "planning", branch: null, base_branch: "main" });
+    patchIssue106Task({
+      status: "planning",
+      branch: null,
+      base_branch: "main",
+    });
 
     const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
     const result = spawnSync(
@@ -10648,13 +10719,14 @@ describe("regression: session-start.py f-string Python <=3.11 compat (0.5.2)", (
       ).toBeNull();
     });
 
-    it(`${rel} parses cleanly with python3 -m py_compile`, () => {
+    it(`${rel} parses cleanly with the platform Python launcher`, () => {
       // Belt-and-braces: ask the host Python to parse the file. On Python
       // 3.12+ this won't catch the regression (PEP 701 allows it), so the
       // regex test above is the primary gate. On macOS system Python 3.9 or
       // any CI runner with python3 < 3.12 this is a hard catch.
+      const pythonCmd = process.platform === "win32" ? "python" : "python3";
       const r = spawnSync(
-        "python3",
+        pythonCmd,
         [
           "-c",
           `import ast,sys; ast.parse(open(sys.argv[1], encoding='utf-8').read()); print('OK')`,
@@ -10662,13 +10734,13 @@ describe("regression: session-start.py f-string Python <=3.11 compat (0.5.2)", (
         ],
         { encoding: "utf-8" },
       );
-      // If python3 is unavailable on the runner, skip silently — the regex
+      // If Python is unavailable on the runner, skip silently — the regex
       // assertion above already covers the regression deterministically.
       if (r.error && (r.error as NodeJS.ErrnoException).code === "ENOENT")
         return;
       expect(
         r.status,
-        `python3 ast.parse failed for ${rel}:\n${r.stderr ?? ""}`,
+        `${pythonCmd} ast.parse failed for ${rel}:\n${r.stderr ?? ""}`,
       ).toBe(0);
       expect(r.stdout ?? "").toContain("OK");
     });
@@ -11728,7 +11800,9 @@ print(json.dumps({
     // Says what is left to do, so neither a user nor an agent reading the
     // log has to guess.
     expect(stderr).toContain("only the commit is pending");
-    expect(stderr).toContain(`git commit -m "chore(task): archive ${taskName}"`);
+    expect(stderr).toContain(
+      `git commit -m "chore(task): archive ${taskName}"`,
+    );
     expect(stderr).toContain("Archive moved on disk");
 
     // Consistent state: the move completed, nothing is half-moved.
@@ -11932,7 +12006,9 @@ describe("regression: task.py rename rewrites every reference in one pass", () =
 
   /** Every `<file>:<line>` under .trellis/tasks/ that still names `taskName`. */
   function scanForName(taskName: string): string[] {
-    const pattern = new RegExp(`(?<![0-9A-Za-z_-])${taskName}(?![0-9A-Za-z_-])`);
+    const pattern = new RegExp(
+      `(?<![0-9A-Za-z_-])${taskName}(?![0-9A-Za-z_-])`,
+    );
     const hits: string[] = [];
     const walk = (dir: string): void => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -12136,9 +12212,9 @@ describe("regression: task.py rename rewrites every reference in one pass", () =
     expect(r.status, r.stderr).toBe(0);
 
     const renamed = `${datePrefix}-renamed`;
-    expect(
-      JSON.parse(fs.readFileSync(sessionFile, "utf-8")).current_task,
-    ).toBe(`.trellis/tasks/${renamed}`);
+    expect(JSON.parse(fs.readFileSync(sessionFile, "utf-8")).current_task).toBe(
+      `.trellis/tasks/${renamed}`,
+    );
     // A session on a different task is left exactly as it was.
     expect(
       JSON.parse(fs.readFileSync(bystanderFile, "utf-8")).current_task,
