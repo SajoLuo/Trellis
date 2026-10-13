@@ -35,11 +35,40 @@ Agent files should not become generic chat prompts. They should define input sou
 | Reasonix | `.reasonix/skills/trellis-*/SKILL.md` (subagent frontmatter) |
 | ZCode | `.zcode/agents/trellis-*.md` |
 | Kimi Code | `.kimi-code/skills/trellis-*/SKILL.md` (agent prompts as skills, dispatched to the built-in `coder`; research needs its file-editing tools to persist findings) |
-| DeepSeek Harness | `.dsh/skills/trellis-agent-*/SKILL.md` (role prompts as child-only skills; optional `trellis_wait` enables continuable background settlement; without it, dispatch every child with `run_in_background: false` from the outset) |
+| DeepSeek Harness | `.dsh/skills/trellis-agent-*/SKILL.md` (child-only role prompts; choose synchronization from the actual tool catalog and schema, not optional plugin presence alone; see the DSH contract below) |
 
 GitHub Copilot agent/prompt support is provided by a combination of directories such as `.github/agents/`, `.github/prompts/`, and `.github/skills/`; inspect the files actually generated in the user project.
 
 Main-session workflow platforms such as Kilo, Antigravity, and Devin may not have Trellis sub-agent files. They usually rely on workflows/skills to guide the main session.
+
+### DeepSeek Harness synchronization
+
+Before dispatching a dependent role, inspect the actual tool catalog and schema.
+DSH 0.2.1-alpha.2 returns a `subagentId` immediately and has no
+`run_in_background` parameter; a child id is not completion evidence.
+
+- With `trellis_wait`, use the supported continuable `subagent` contract,
+  continue independent work, then wait once per dependent child id. Require a
+  successful settled outcome and inspect the actual report or transcript before
+  advancing. A wait result or end event does not prove a native settlement
+  notice was queued or delivered; do not require a separate notice after a
+  verified result.
+- Without a waiter, use `run_in_background: false` only if the legacy schema
+  supports it, and inspect the successful returned outcome and actual report
+  or transcript before advancing. Never send this removed parameter to alpha.2.
+- Without legacy foreground support, use a verified native notification/yield
+  path: yield the parent and consume the actual successful result and report or
+  transcript before advancing. Merely expecting a best-effort notice is not a
+  verified synchronization path.
+- If no reliable synchronization path exists, do the work in the main session,
+  loading the task artifacts and specs directly. Do not start an unsynchronizable
+  child or load a child-only role skill in the main session.
+
+Unknown, aborted, or failed outcomes block the dependent gate. The SDK
+`session/wait` API is not automatically a model-callable tool. Do not simulate
+waiting with shell sleep, polling loops, `job_output`, or repeated agent-list
+polling. Keep the workflow's active-task context, role boundaries, recursion
+guards, and required planning/check/commit gates intact.
 
 ## Two Context Loading Modes
 

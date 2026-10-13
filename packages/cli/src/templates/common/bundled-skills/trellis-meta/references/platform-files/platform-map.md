@@ -26,7 +26,7 @@ This page lists common Trellis file locations in a user project by platform. Whe
 | Grok Build | `--grok` | `.grok/` | `.grok/skills/` | `.grok/agents/` | pull-based prelude (no hooks; flat `.grok/commands/trellis-*.md`) |
 | Kimi Code | `--kimi` | `.kimi-code/` | `.agents/skills/` (shared) + `.kimi-code/skills/` | None — agent prompts are skills under `.kimi-code/skills/` and dispatch to the built-in `coder` | None (pull-based prelude; no project hooks/settings) |
 | Snow CLI | `--snow` | `.snow/` | `.snow/skills/` | `.snow/agents/` (auto-discovered; primary path) | class-1: auto inject + project agents + `beforeSubAgentStart` (`.snow/hooks/` `session`/`user`/`subagent` modes -> `additionalContext` JSON); no legacy sub-agent JSON; commands `.snow/commands/trellis-*.json` |
-| DeepSeek Harness | `--dsh` | `.dsh/` | `.agents/skills/` (shared) + `.dsh/skills/` | None — role prompts are collision-free `trellis-agent-*` skills under `.dsh/skills/` | None installed by Trellis (pull-based roles; optional `dsh-trellis` adds event-driven wait, otherwise foreground dispatch) |
+| DeepSeek Harness | `--dsh` | `.dsh/` | `.agents/skills/` (shared) + `.dsh/skills/` | None — role prompts are collision-free `trellis-agent-*` skills under `.dsh/skills/` | None installed by Trellis (pull-based roles; use exposed `trellis_wait`, schema-supported legacy foreground, verified native notification/yield, or main-session fallback; see `agents.md`) |
 
 ## Capability Groups
 

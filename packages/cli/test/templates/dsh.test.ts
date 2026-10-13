@@ -51,6 +51,8 @@ describe("dsh template readers", () => {
     expect(guide).toContain("If unavailable");
     expect(guide).toContain("once per dependent child id");
     expect(guide).toContain("run_in_background: false");
+    expect(guide).toContain("actual tool catalog and `subagent` schema");
+    expect(guide).not.toContain("If unavailable, dispatch every child");
     expect(guide).toContain("DSH_TRELLIS_CONTEXT_ID");
     expect(guide).toContain("`DSH_SHELL=1` together with `DSH_SESSION_ID`");
     expect(guide).toContain("including nested launches");
@@ -148,14 +150,49 @@ describe("dsh collectDshTemplates", () => {
   });
 
   it("keeps the bundled meta reference explicit about the DSH fallback", () => {
-    const metaAgents = collectDshTemplates().get(
-      ".agents/skills/trellis-meta/references/platform-files/agents.md",
-    );
+    const files = collectDshTemplates();
+    const metaAgents = files
+      .get(".agents/skills/trellis-meta/references/platform-files/agents.md")
+      ?.replace(/\s+/g, " ");
 
+    expect(metaAgents).toContain("actual tool catalog and schema");
+    expect(metaAgents).toContain("With `trellis_wait`");
     expect(metaAgents).toContain(
+      "`run_in_background: false` only if the legacy schema supports it",
+    );
+    expect(metaAgents).toContain(
+      "0.2.1-alpha.2 returns a `subagentId` immediately and has no `run_in_background`",
+    );
+    expect(metaAgents).toContain("verified native notification/yield path");
+    expect(metaAgents).toContain("yield the parent");
+    expect(metaAgents).toContain(
+      "If no reliable synchronization path exists, do the work in the main session",
+    );
+    expect(metaAgents).toContain(
+      "successful settled outcome and inspect the actual report or transcript",
+    );
+    expect(metaAgents).toContain(
+      "does not prove a native settlement notice was queued or delivered",
+    );
+    expect(metaAgents).not.toContain(
       "without it, dispatch every child with `run_in_background: false` from the outset",
     );
     expect(metaAgents).not.toContain("otherwise initial foreground dispatch");
+
+    const metaSkill = files.get(".agents/skills/trellis-meta/SKILL.md");
+    expect(metaSkill).toContain(
+      "choose synchronization by actual tool capability",
+    );
+    expect(metaSkill).not.toContain(
+      "otherwise required children are dispatched in the foreground from the start",
+    );
+    const platformMap = files.get(
+      ".agents/skills/trellis-meta/references/platform-files/platform-map.md",
+    );
+    expect(platformMap).toContain("schema-supported legacy foreground");
+    expect(platformMap).toContain("verified native notification/yield");
+    expect(platformMap).toContain("main-session fallback");
+    expect(platformMap).not.toContain("otherwise foreground dispatch");
   });
 
   it("ships the operator guide and no hooks/settings files", () => {
